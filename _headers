@@ -1,0 +1,20 @@
+# Pengaturan header untuk Netlify (dibaca otomatis saat folder di-upload ke Netlify Drop)
+
+# Service worker & manifest jangan di-cache lama oleh browser, supaya pembaruan aplikasi cepat terdeteksi
+/sw.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
