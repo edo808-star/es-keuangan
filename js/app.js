@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -17,7 +17,7 @@
     transaksi: [],
     bulan: bulanIni(),
     buku: 'pribadi',            // buku aktif: 'pribadi' | 'usaha'
-    pengaturan: { namaUsaha: '', waKontak: [], waOtomatis: true, saldoAwal: { pribadi: 0, usaha: 0 } },
+    pengaturan: { namaUsaha: '', waKontak: [], waOtomatis: true, waAksi: 'sekaligus', saldoAwal: { pribadi: 0, usaha: 0 } },
     filterJenis: 'semua',
     filterKategori: '',
     view: 'beranda',
@@ -516,9 +516,9 @@
     renderSemua();
     toast(lama ? 'Perubahan disimpan' : 'Transaksi disimpan ✔');
     // Buku Usaha: buat teks laporan WhatsApp otomatis
-    if (state.pengaturan.waOtomatis && (tx.buku === 'usaha' || (sebelum && sebelum.buku === 'usaha'))) {
+    if (tx.buku === 'usaha' || (sebelum && sebelum.buku === 'usaha')) {
       const teks = tx.buku === 'usaha' ? teksWa(lama ? 'koreksi' : 'baru', tx, sebelum) : teksWa('batal', sebelum);
-      if (teks) bukaWa(teks);
+      if (teks) kirimOtomatis(teks);
     }
     mintaPenyimpananPermanen();
     cekPengingatBackup();
@@ -536,7 +536,7 @@
     state.transaksi = state.transaksi.filter((t) => t.id !== id);
     tutupForm();
     renderSemua();
-    if (tx.buku === 'usaha' && state.pengaturan.waOtomatis) bukaWa(teksWa('batal', tx));
+    if (tx.buku === 'usaha') kirimOtomatis(teksWa('batal', tx));
     toast('Transaksi dihapus', {
       label: 'URUNGKAN',
       fn: async () => { await DB.simpan('transaksi', tx); state.transaksi.push(tx); renderSemua(); toast('Transaksi dikembalikan'); }
@@ -570,10 +570,42 @@
       perubahan = efek(tx);
     }
     const awal = sesudah - perubahan;
-    // Keterangan di belakang saldo sesudah: catatan, atau nama kategori jika catatan kosong
-    const ket = (tx.catatan || '').trim() || namaKategori(tx.kategori);
-    baris.push(angkaKoma(awal) + (perubahan < 0 ? ' - ' : ' + ') + angkaKoma(Math.abs(perubahan)) + ' = ' + angkaKoma(sesudah) + ' (' + ket + ')');
+    // Keterangan di belakang saldo sesudah hanya jika catatan diisi manual
+    const ket = (tx.catatan || '').trim();
+    baris.push(angkaKoma(awal) + (perubahan < 0 ? ' - ' : ' + ') + angkaKoma(Math.abs(perubahan)) + ' = ' + angkaKoma(sesudah) + (ket ? ' (' + ket + ')' : ''));
     return baris.join('\n');
+  }
+  /** Aksi otomatis setelah transaksi Usaha disimpan/dihapus (sesuai Pengaturan) */
+  async function kirimOtomatis(teks) {
+    const aksi = aksiWa();
+    if (aksi === 'mati') return;
+    if (aksi === 'lembar') { bukaWa(teks); return; }
+    if (aksi === 'sekaligus') {
+      try {
+        await navigator.share({ text: teks });
+        toast('Terkirim ✔');
+      } catch (ex) {
+        if (ex && ex.name === 'AbortError') toast('Pengiriman dibatalkan — buka transaksinya untuk kirim ulang');
+        else bukaWa(teks); // menu Bagikan tidak bisa dibuka → tampilkan pilihan manual
+      }
+      return;
+    }
+    const k = state.pengaturan.waKontak.find((x) => 'kontak:' + x.id === aksi);
+    if (k) {
+      $('waTeks').value = teks;
+      kirimWa(k.nomor);
+      return;
+    }
+    bukaWa(teks);
+  }
+  /** Aksi yang berlaku; jatuh ke 'lembar' jika pilihan tidak bisa dipakai di HP ini */
+  function aksiWa() {
+    const p = state.pengaturan;
+    let a = p.waAksi || 'sekaligus';
+    if (p.waOtomatis === false) a = 'mati';
+    if (a === 'sekaligus' && !navigator.share) a = 'lembar';
+    if (a.startsWith('kontak:') && !p.waKontak.some((x) => 'kontak:' + x.id === a)) a = 'lembar';
+    return a;
   }
   function nomorWa(n) {
     let d = String(n || '').replace(/\D/g, '');
@@ -641,7 +673,7 @@
   }
   function renderPengaturanUsaha() {
     renderDaftarKontak();
-    $('setWaOtomatis').checked = state.pengaturan.waOtomatis !== false;
+    renderPilihanAksi();
     const fmt = (n) => (n < 0 ? '-' : '') + (n ? titikRibuan(n) : '');
     $('setAwalPribadi').value = fmt(state.pengaturan.saldoAwal.pribadi);
     $('setAwalUsaha').value = fmt(state.pengaturan.saldoAwal.usaha);
@@ -676,6 +708,7 @@
   async function simpanKontak() {
     await DB.setMeta('pengaturan', state.pengaturan);
     renderDaftarKontak();
+    renderPilihanAksi();
   }
   function cekNomor(nomor) {
     const d = nomorWa(nomor);
@@ -719,10 +752,21 @@
     await simpanKontak();
     toast('Nomor dihapus');
   }
-  async function simpanWaOtomatis() {
-    state.pengaturan.waOtomatis = $('setWaOtomatis').checked;
+  function renderPilihanAksi() {
+    const sel = $('setWaAksi');
+    let html = '';
+    if (navigator.share) html += '<option value="sekaligus">🚀 Langsung kirim sekaligus (pilih chat di WhatsApp)</option>';
+    state.pengaturan.waKontak.forEach((k) => { html += '<option value="kontak:' + esc(k.id) + '">💬 Langsung kirim ke ' + esc(k.nama) + '</option>'; });
+    html += '<option value="lembar">📝 Tampilkan teks dulu (bisa diedit)</option>';
+    html += '<option value="mati">⛔ Jangan kirim apa-apa</option>';
+    sel.innerHTML = html;
+    sel.value = aksiWa();
+  }
+  async function simpanWaAksi() {
+    state.pengaturan.waAksi = $('setWaAksi').value;
+    state.pengaturan.waOtomatis = true;
     await DB.setMeta('pengaturan', state.pengaturan);
-    toast(state.pengaturan.waOtomatis ? 'Teks WhatsApp otomatis: aktif' : 'Teks WhatsApp otomatis: nonaktif');
+    toast('Pengaturan kirim otomatis disimpan');
   }
 
   /* ============ Kategori ============ */
@@ -878,6 +922,7 @@
       namaUsaha: String(obj.pengaturan.namaUsaha || '').slice(0, 60),
       waKontak: normalKontak(obj.pengaturan),
       waOtomatis: obj.pengaturan.waOtomatis !== false,
+      waAksi: typeof obj.pengaturan.waAksi === 'string' ? obj.pengaturan.waAksi.slice(0, 80) : 'sekaligus',
       saldoAwal: normalSaldoAwal(obj.pengaturan.saldoAwal)
     } : null;
     return { kategori, transaksi, pengaturan, diekspor_pada: obj.diekspor_pada };
@@ -1088,7 +1133,7 @@
     $('waTutup').onclick = tutupWa;
     $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });
     $('formWaKontak').addEventListener('submit', tambahKontak);
-    $('setWaOtomatis').addEventListener('change', simpanWaOtomatis);
+    $('setWaAksi').addEventListener('change', simpanWaAksi);
     $('waList').addEventListener('click', (e) => {
       const b = e.target.closest('.kat-btn');
       if (!b) return;

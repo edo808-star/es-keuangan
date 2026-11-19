@@ -141,7 +141,7 @@
 
       <div class="card">
         <h2 class="card-title">🏪 WhatsApp untuk Buku Usaha</h2>
-        <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845 (keterangan)</code></p>
+        <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845 (catatan)</code></p>
         <h3 class="subhead">Nomor WhatsApp tujuan</h3>
         <ul class="kat-list" id="waList"></ul>
         <form id="formWaKontak" class="wa-form" autocomplete="off">
@@ -150,10 +150,11 @@
           <button type="submit" class="btn btn-primary">＋ Tambah Nomor</button>
         </form>
         <p class="note">Setiap nomor punya tombol kirim sendiri. Untuk grup WhatsApp, pakai tombol <strong>"Pilih kontak / grup lain"</strong> saat mengirim.</p>
-        <label class="check">
-          <input type="checkbox" id="setWaOtomatis" checked>
-          <span>Tampilkan teks WhatsApp otomatis setelah menyimpan transaksi Usaha</span>
+        <label class="field">
+          <span>Setelah menyimpan / menghapus transaksi Usaha:</span>
+          <select id="setWaAksi"></select>
         </label>
+        <p class="note">Keterangan dalam kurung hanya ditambahkan jika kolom <strong>Catatan</strong> diisi.</p>
       </div>
 
       <div class="card">

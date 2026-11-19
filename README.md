@@ -34,8 +34,8 @@ es-keuangan/
 9. Backup & Restore JSON + pengingat jika lebih dari 7 hari belum backup
 10. **Dua buku: Pribadi & Usaha** — pilih di bagian atas layar, masing-masing punya saldo, daftar, grafik sendiri
 11. **Teks WhatsApp otomatis (buku Usaha)** — setiap uang masuk/keluar langsung dibuatkan teks saldo berjalan:
-    `993,845 + 35,000 = 1,028,845 (Penjualan)` atau `1,028,845 - 4,306,000 = -3,277,155 (Semen & seng ASIM)`
-    — keterangan dalam kurung diambil dari catatan (atau nama kategori jika catatan kosong)
+    `993,845 + 35,000 = 1,028,845` atau `1,028,845 - 4,306,000 = -3,277,155 (Semen & seng ASIM)`
+    — keterangan dalam kurung hanya muncul jika kolom Catatan diisi. Teks bisa langsung dikirim otomatis saat menyimpan (atur di Pengaturan)
     lalu tinggal ketuk *Kirim ke WhatsApp*. Koreksi dan pembatalan transaksi juga dibuatkan teksnya.
 
 ### Memakai buku Usaha
