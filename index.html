@@ -258,9 +258,13 @@
       <h2 id="waTitle">💬 Kirim Saldo Usaha ke WhatsApp</h2>
       <p class="note">Teks dibuat otomatis. Anda bisa mengubahnya sebelum dikirim.</p>
       <textarea id="waTeks" rows="3" aria-label="Teks laporan WhatsApp"></textarea>
+      <div id="waSekaligusBox" hidden>
+        <button type="button" class="btn btn-wa btn-block btn-lg" id="waSekaligus">🚀 Kirim Sekaligus ke Banyak Chat</button>
+        <p class="note wa-hint">Pilih <strong>WhatsApp</strong>, lalu centang beberapa chat/grup (mis. <span id="waSekaligusNama">PP, MM</span>) — maks. 5 — dan kirim sekali.</p>
+        <p class="note wa-sub">Atau kirim satu per satu:</p>
+      </div>
       <div id="waTujuanList"></div>
       <button type="button" class="btn btn-outline btn-block" id="waKirimLain">💬 Pilih kontak / grup lain…</button>
-      <button type="button" class="btn btn-outline btn-block" id="waBagikan" hidden>📤 Bagikan ke aplikasi lain…</button>
       <button type="button" class="btn btn-outline btn-block" id="waSalin">📋 Salin Teks</button>
       <button type="button" class="btn btn-ghost btn-block" id="waTutup">Selesai</button>
     </div>

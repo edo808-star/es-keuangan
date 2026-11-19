@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -584,7 +584,7 @@
   function bukaWa(teks) {
     $('waTeks').value = teks;
     renderTujuanWa();
-    $('waBagikan').hidden = !navigator.share;
+    $('waSekaligusBox').hidden = !navigator.share;
     $('waOverlay').hidden = false;
     $('toast').hidden = true;
     document.body.style.overflow = 'hidden';
@@ -592,9 +592,11 @@
   function renderTujuanWa() {
     const list = state.pengaturan.waKontak;
     $('waTujuanList').innerHTML = list.length
-      ? list.map((k) => '<button type="button" class="btn btn-wa btn-block btn-lg wa-tujuan" data-id="' + esc(k.id) + '">' +
+      ? list.map((k) => '<button type="button" class="btn btn-block wa-tujuan ' + (navigator.share ? 'btn-wa-outline' : 'btn-wa btn-lg') + '" data-id="' + esc(k.id) + '">' +
           '<span class="wa-tujuan-teks">💬 Kirim ke <strong>' + esc(k.nama) + '</strong><small>+' + esc(nomorWa(k.nomor)) + '</small></span></button>').join('')
       : '<p class="note">Belum ada nomor tersimpan. Tambahkan di <strong>Pengaturan → WhatsApp untuk Buku Usaha</strong>, atau pilih kontak di bawah.</p>';
+    const nama = list.map((k) => k.nama);
+    $('waSekaligusNama').textContent = nama.length ? nama.join(', ') : 'PP, MM';
     $('waKirimLain').className = 'btn btn-block ' + (list.length ? 'btn-outline' : 'btn-wa btn-lg');
   }
   function tutupWa() {
@@ -618,7 +620,14 @@
     }
   }
   async function bagikanWa() {
-    try { await navigator.share({ text: $('waTeks').value }); tutupWa(); } catch (_) { /* dibatalkan */ }
+    // Lembar Bagikan Android/iPhone: di WhatsApp bisa centang beberapa chat sekaligus lalu kirim sekali
+    try {
+      await navigator.share({ text: $('waTeks').value });
+      tutupWa();
+      toast('Terkirim lewat menu Bagikan ✔');
+    } catch (ex) {
+      if (!ex || ex.name !== 'AbortError') { await salinWa(); }
+    }
   }
   async function salinWa() {
     const teks = $('waTeks').value;
@@ -1074,7 +1083,7 @@
       if (k) kirimWa(k.nomor, b);
     });
     $('waKirimLain').onclick = () => kirimWa('');
-    $('waBagikan').onclick = bagikanWa;
+    $('waSekaligus').onclick = bagikanWa;
     $('waSalin').onclick = salinWa;
     $('waTutup').onclick = tutupWa;
     $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });

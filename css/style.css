@@ -327,3 +327,7 @@ body.buku-usaha .fab { background: var(--usaha); box-shadow: 0 6px 20px rgba(29,
 .wa-tujuan-teks small { display: block; font-weight: 400; font-size: 13px; opacity: .85; }
 .wa-tujuan.terkirim { background: color-mix(in srgb, var(--wa) 70%, #000); }
 #waTujuanList { margin-top: 4px; }
+.btn-wa-outline { background: var(--surface); color: var(--wa); border: 2px solid var(--wa); justify-content: flex-start; text-align: left; }
+.btn-wa-outline.terkirim { background: var(--masuk-soft); }
+.wa-hint { margin: 8px 2px 4px; }
+.wa-sub { margin: 14px 2px 0; font-weight: 600; }
