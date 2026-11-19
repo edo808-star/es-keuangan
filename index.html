@@ -243,6 +243,17 @@
           <span>Catatan <em class="muted">(opsional)</em></span>
           <input type="text" id="txCatatan" maxlength="120" placeholder="mis. Makan siang">
         </label>
+        <div class="field gambar-field" id="txGambarBox" hidden>
+          <span>Gambar untuk WhatsApp <em class="muted">(opsional)</em></span>
+          <div class="gambar-pilih" id="txGambarPilih">
+            <label class="btn btn-outline gambar-btn">📷 Foto / Pilih Gambar<input type="file" id="txGambar" accept="image/*" hidden></label>
+          </div>
+          <div class="gambar-preview" id="txGambarPreview" hidden>
+            <img id="txGambarImg" alt="Gambar terlampir">
+            <button type="button" class="btn btn-ghost gambar-hapus" id="txGambarHapus">✕ Hapus gambar</button>
+          </div>
+          <p class="note">Gambar (mis. foto nota) dikirim ke WhatsApp bersama teks saldo. Gambar tidak disimpan di aplikasi.</p>
+        </div>
         <p class="form-error" id="txError" hidden></p>
         <button type="submit" class="btn btn-primary btn-block btn-lg" id="txSubmit">Simpan</button>
         <button type="button" class="btn btn-wa btn-block" id="txKirimWa" hidden>💬 Kirim Laporan ke WhatsApp</button>
@@ -259,6 +270,20 @@
       <h2 id="waTitle">💬 Kirim Saldo Usaha ke WhatsApp</h2>
       <p class="note">Teks dibuat otomatis. Anda bisa mengubahnya sebelum dikirim.</p>
       <textarea id="waTeks" rows="3" aria-label="Teks laporan WhatsApp"></textarea>
+      <div class="gambar-field wa-gambar">
+        <div class="gambar-pilih" id="waGambarPilih">
+          <label class="btn btn-outline btn-block gambar-btn">📷 Lampirkan Gambar<input type="file" id="waGambar" accept="image/*" hidden></label>
+        </div>
+        <div class="gambar-preview" id="waGambarPreview" hidden>
+          <img id="waGambarImg" alt="Gambar terlampir">
+          <button type="button" class="btn btn-ghost gambar-hapus" id="waGambarHapus">✕ Hapus gambar</button>
+        </div>
+      </div>
+      <div id="waGambarKirimBox" hidden>
+        <button type="button" class="btn btn-wa btn-block btn-lg" id="waKirimGambar">🖼️ Kirim Gambar + Teks…</button>
+        <p class="note wa-hint">Pilih <strong>WhatsApp</strong>, lalu centang satu atau beberapa chat/grup. Teks saldo ikut sebagai keterangan gambar.</p>
+        <p class="note wa-sub">Tombol di bawah hanya mengirim teks (tanpa gambar):</p>
+      </div>
       <div id="waSekaligusBox" hidden>
         <button type="button" class="btn btn-wa btn-block btn-lg" id="waSekaligus"><span>🚀 Kirim ke Semua (<span id="waSemuaLabel">PP & MM</span>)</span></button>
         <p class="note wa-hint">Chat <span id="waSekaligusNama">PP, MM</span> dibuka bergantian dengan teks siap kirim. Setelah kirim, kembali ke aplikasi lalu ketuk lanjut.</p>

@@ -331,3 +331,12 @@ body.buku-usaha .fab { background: var(--usaha); box-shadow: 0 6px 20px rgba(29,
 .btn-wa-outline.terkirim { background: var(--masuk-soft); }
 .wa-hint { margin: 8px 2px 4px; }
 .wa-sub { margin: 14px 2px 0; font-weight: 600; }
+
+/* ---------- Gambar untuk WhatsApp ---------- */
+.gambar-field { display: block; margin-bottom: 14px; }
+.gambar-field > span { display: block; font-weight: 600; font-size: 14px; color: var(--text-2); margin-bottom: 6px; }
+.wa-gambar { margin: 10px 0 4px; }
+.gambar-btn { cursor: pointer; }
+.gambar-preview { display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.gambar-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; flex: 0 0 auto; background: var(--border); }
+.gambar-hapus { flex: 1 1 auto; min-width: 0; }

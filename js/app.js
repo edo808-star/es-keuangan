@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.6.0';
+  const APP_VERSION = '1.7.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -449,6 +449,7 @@
       $('txId').value = tx.id;
       $('txBuku').value = tx.buku;
       $('txKirimWa').hidden = tx.buku !== 'usaha';
+      aturGambar(null);
       setFormJenis(tx.jenis, tx.kategori);
       $('txJumlah').value = titikRibuan(tx.jumlah);
       $('txTanggal').value = tx.tanggal;
@@ -460,6 +461,7 @@
       $('txId').value = '';
       $('txBuku').value = state.buku;
       $('txKirimWa').hidden = true;
+      aturGambar(null);
       setFormJenis(state.filterJenis === 'masuk' ? 'masuk' : 'keluar');
       $('txJumlah').value = '';
       $('txTanggal').value = hariIni();
@@ -467,6 +469,7 @@
       $('txSubmit').textContent = 'Simpan';
       $('txHapus').hidden = true;
     }
+    tampilkanKotakGambar();
     $('sheetOverlay').hidden = false;
     document.body.style.overflow = 'hidden';
     if (!tx) setTimeout(() => $('txJumlah').focus(), 120);
@@ -532,6 +535,7 @@
       esc(namaKategori(tx.kategori)) + ' · <strong>' + esc(rupiah(tx.jumlah)) + '</strong><br>' + esc(labelTanggal(tx.tanggal)) +
       (tx.catatan ? '<br><em>' + esc(tx.catatan) + '</em>' : ''), 'Ya, Hapus', true);
     if (!ok) return;
+    aturGambar(null);
     await DB.hapus('transaksi', id);
     state.transaksi = state.transaksi.filter((t) => t.id !== id);
     tutupForm();
@@ -578,7 +582,17 @@
   /** Aksi otomatis setelah transaksi Usaha disimpan/dihapus (sesuai Pengaturan) */
   async function kirimOtomatis(teks) {
     const aksi = aksiWa();
-    if (aksi === 'mati') return;
+    if (aksi === 'mati') { aturGambar(null); return; }
+    // Ada gambar: link wa.me tidak bisa membawa gambar → pakai menu Bagikan (gambar + teks sekaligus)
+    if (gambarWa) {
+      if (bisaBagikanGambar()) {
+        const hasil = await bagikanGambar(teks);
+        if (hasil === 'ok') { aturGambar(null); toast('Gambar + teks terkirim ✔'); return; }
+        if (hasil === 'batal') toast('Pengiriman dibatalkan — kirim lagi dari lembar ini');
+      }
+      bukaWa(teks); // gambar tetap terlampir di lembar WhatsApp
+      return;
+    }
     if (aksi === 'lembar') { bukaWa(teks); return; }
     if (aksi === 'sekaligus') { kirimKeSemua(teks); return; }
     if (aksi === 'bagikan') {
@@ -643,6 +657,74 @@
     if (pilihan === 'lanjut' && antrianWa === q) lanjutAntrianWa();
     else antrianWa = null;
   }
+  /* ---- Gambar untuk WhatsApp (hanya di memori, tidak disimpan ke database) ---- */
+  let gambarWa = null;
+  let urlGambar = '';
+  function aturGambar(file) {
+    gambarWa = file || null;
+    if (urlGambar) { URL.revokeObjectURL(urlGambar); urlGambar = ''; }
+    if (gambarWa) urlGambar = URL.createObjectURL(gambarWa);
+    ['tx', 'wa'].forEach((p) => {
+      $(p + 'GambarPreview').hidden = !gambarWa;
+      $(p + 'GambarPilih').hidden = !!gambarWa;
+      $(p + 'GambarImg').src = urlGambar || '';
+      $(p + 'Gambar').value = '';
+    });
+    $('waGambarKirimBox').hidden = !gambarWa;
+  }
+  function tampilkanKotakGambar() { $('txGambarBox').hidden = $('txBuku').value !== 'usaha'; }
+  function bisaBagikanGambar() {
+    if (!navigator.share || !navigator.canShare) return false;
+    try { return navigator.canShare({ files: [new File([''], 'cek.jpg', { type: 'image/jpeg' })] }); } catch (_) { return false; }
+  }
+  /** Perkecil foto kamera (bisa 5–10 MB) agar cepat dikirim; jika gagal pakai file aslinya */
+  async function siapkanGambar(file) {
+    if (!file || !/^image\//.test(file.type)) return null;
+    if (file.size < 600 * 1024 || !window.createImageBitmap) return file;
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const maks = 1600;
+      const skala = Math.min(1, maks / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * skala);
+      c.height = Math.round(bmp.height * skala);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      if (bmp.close) bmp.close();
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      if (!blob || blob.size >= file.size) return file;
+      const nama = (file.name || 'gambar').replace(/\.[^.]+$/, '') + '.jpg';
+      return new File([blob], nama, { type: 'image/jpeg', lastModified: Date.now() });
+    } catch (_) { return file; }
+  }
+  async function pilihGambar(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const hasil = await siapkanGambar(f);
+    if (!hasil) { info('Bukan gambar', 'Pilih file foto/gambar (JPG, PNG, dll.).'); e.target.value = ''; return; }
+    aturGambar(hasil);
+  }
+  /** Bagikan gambar + teks lewat menu Bagikan. Hasil: 'ok' | 'batal' | 'gagal' */
+  async function bagikanGambar(teks) {
+    const data = { files: [gambarWa], text: teks };
+    try {
+      if (navigator.canShare && !navigator.canShare(data)) return 'gagal';
+      await navigator.share(data);
+      return 'ok';
+    } catch (ex) {
+      return ex && ex.name === 'AbortError' ? 'batal' : 'gagal';
+    }
+  }
+  async function kirimGambarDariLembar() {
+    if (!gambarWa) return;
+    if (!bisaBagikanGambar()) {
+      info('Tidak didukung di HP ini', 'Browser ini tidak bisa mengirim gambar langsung ke WhatsApp. Kirim teksnya dengan tombol di bawah, lalu lampirkan gambar secara manual di WhatsApp.');
+      return;
+    }
+    const hasil = await bagikanGambar($('waTeks').value);
+    if (hasil === 'ok') { tutupWa(); toast('Gambar + teks terkirim ✔'); }
+    else if (hasil === 'gagal') info('Gagal membagikan', 'Gambar tidak bisa dibagikan. Coba gambar lain, atau kirim teks saja lalu lampirkan gambar di WhatsApp.');
+  }
+
   function nomorWa(n) {
     let d = String(n || '').replace(/\D/g, '');
     if (d.startsWith('0')) d = '62' + d.slice(1);
@@ -654,6 +736,7 @@
     renderTujuanWa();
     $('waSekaligusBox').hidden = !state.pengaturan.waKontak.length;
     $('waBagikan').hidden = !navigator.share;
+    $('waGambarKirimBox').hidden = !gambarWa;
     $('waOverlay').hidden = false;
     $('toast').hidden = true;
     document.body.style.overflow = 'hidden';
@@ -670,6 +753,7 @@
     $('waKirimLain').className = 'btn btn-block ' + (list.length ? 'btn-outline' : 'btn-wa btn-lg');
   }
   function tutupWa() {
+    aturGambar(null);
     $('waOverlay').hidden = true;
     document.body.style.overflow = '';
   }
@@ -1154,7 +1238,12 @@
   function pasangEvent() {
     document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => gantiView(b.dataset.view)));
     document.querySelectorAll('.buku-btn').forEach((b) => b.addEventListener('click', () => gantiBuku(b.dataset.buku)));
-    $('txBuku').addEventListener('change', () => { $('txKirimWa').hidden = true; });
+    $('txBuku').addEventListener('change', () => { $('txKirimWa').hidden = true; tampilkanKotakGambar(); });
+    $('txGambar').addEventListener('change', pilihGambar);
+    $('waGambar').addEventListener('change', pilihGambar);
+    $('txGambarHapus').onclick = () => aturGambar(null);
+    $('waGambarHapus').onclick = () => aturGambar(null);
+    $('waKirimGambar').onclick = kirimGambarDariLembar;
     $('txKirimWa').onclick = () => {
       const tx = state.transaksi.find((t) => t.id === $('txId').value);
       if (!tx) return;
