@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.2.1';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -931,8 +931,16 @@
     let muatUlang = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (muatUlang) location.reload(); });
     navigator.serviceWorker.register('sw.js').then((reg) => {
+      // Banner pembaruan tetap tampil sampai diketuk (tidak hilang sendiri)
       const tawarkan = (sw) => {
-        toast('Versi baru tersedia', { label: 'MUAT ULANG', fn: () => { muatUlang = true; sw.postMessage('skipWaiting'); } });
+        $('updateBanner').hidden = false;
+        $('btnUpdate').onclick = () => {
+          $('btnUpdate').disabled = true;
+          $('btnUpdate').textContent = 'Memperbarui…';
+          muatUlang = true;
+          sw.postMessage('skipWaiting');
+          setTimeout(() => location.reload(), 3000); // cadangan bila controllerchange tidak terpicu
+        };
       };
       if (reg.waiting && navigator.serviceWorker.controller) tawarkan(reg.waiting);
       reg.addEventListener('updatefound', () => {
@@ -942,6 +950,10 @@
           if (sw.state === 'installed' && navigator.serviceWorker.controller) tawarkan(sw);
         });
       });
+      // Cek pembaruan setiap kali aplikasi dibuka kembali dan tiap 1 jam saat terbuka
+      const cek = () => { if (navigator.onLine) reg.update().catch(() => {}); };
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cek(); });
+      setInterval(cek, 60 * 60 * 1000);
     }).catch((e) => console.warn('Service worker gagal didaftarkan:', e));
   }
 

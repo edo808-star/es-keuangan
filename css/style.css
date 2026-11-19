@@ -319,3 +319,4 @@ input[type="tel"] { width: 100%; min-height: 48px; padding: 10px 12px; border-ra
 body.buku-usaha .fab { background: var(--usaha); box-shadow: 0 6px 20px rgba(29,78,216,.4); }
 .amount-prefix.small { font-size: 16px; }
 #setAwalPribadi, #setAwalUsaha { padding-left: 46px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.banner-update { background: var(--primary-soft); border: 1px solid var(--primary); }
