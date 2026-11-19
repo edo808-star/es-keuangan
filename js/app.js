@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.6.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -580,7 +580,8 @@
     const aksi = aksiWa();
     if (aksi === 'mati') return;
     if (aksi === 'lembar') { bukaWa(teks); return; }
-    if (aksi === 'sekaligus') {
+    if (aksi === 'sekaligus') { kirimKeSemua(teks); return; }
+    if (aksi === 'bagikan') {
       try {
         await navigator.share({ text: teks });
         toast('Terkirim ✔');
@@ -603,9 +604,44 @@
     const p = state.pengaturan;
     let a = p.waAksi || 'sekaligus';
     if (p.waOtomatis === false) a = 'mati';
-    if (a === 'sekaligus' && !navigator.share) a = 'lembar';
+    if (a === 'sekaligus' && !p.waKontak.length) a = navigator.share ? 'bagikan' : 'lembar';
+    if (a === 'bagikan' && !navigator.share) a = 'lembar';
     if (a.startsWith('kontak:') && !p.waKontak.some((x) => 'kontak:' + x.id === a)) a = 'lembar';
     return a;
+  }
+  /* ---- Kirim ke semua nomor tersimpan: chat tiap nomor dibuka berurutan dengan teks siap kirim ---- */
+  let antrianWa = null;
+  function kirimKeSemua(teks) {
+    const list = state.pengaturan.waKontak.slice();
+    if (!list.length) { bukaWa(teks); return; }
+    tutupWa();
+    antrianWa = { teks, list, i: 0, dibuka: false };
+    lanjutAntrianWa();
+  }
+  function lanjutAntrianWa() {
+    if (!antrianWa) return;
+    const k = antrianWa.list[antrianWa.i];
+    antrianWa.i += 1;
+    antrianWa.dibuka = true;
+    kirimWa(k.nomor, null, antrianWa.teks);
+  }
+  /** Dipanggil saat kembali ke aplikasi dari WhatsApp */
+  async function kembaliDariWa() {
+    if (!antrianWa || !antrianWa.dibuka) return;
+    antrianWa.dibuka = false;
+    const q = antrianWa;
+    const sudah = q.list.slice(0, q.i).map((k) => esc(k.nama)).join(', ');
+    if (q.i >= q.list.length) {
+      antrianWa = null;
+      toast('Terkirim ke semua: ' + q.list.map((k) => k.nama).join(', ') + ' ✔');
+      return;
+    }
+    const next = q.list[q.i];
+    const pilihan = await dialog('Lanjut kirim?',
+      '<p>✓ Sudah dibuka: <strong>' + sudah + '</strong></p><p>Berikutnya: <strong>' + esc(next.nama) + '</strong> (' + (q.i + 1) + ' dari ' + q.list.length + ')</p>',
+      [{ label: '💬 Kirim ke ' + next.nama, nilai: 'lanjut', kelas: 'btn-wa btn-lg' }, { label: 'Selesai', nilai: null, kelas: 'btn-ghost' }]);
+    if (pilihan === 'lanjut' && antrianWa === q) lanjutAntrianWa();
+    else antrianWa = null;
   }
   function nomorWa(n) {
     let d = String(n || '').replace(/\D/g, '');
@@ -616,7 +652,8 @@
   function bukaWa(teks) {
     $('waTeks').value = teks;
     renderTujuanWa();
-    $('waSekaligusBox').hidden = !navigator.share;
+    $('waSekaligusBox').hidden = !state.pengaturan.waKontak.length;
+    $('waBagikan').hidden = !navigator.share;
     $('waOverlay').hidden = false;
     $('toast').hidden = true;
     document.body.style.overflow = 'hidden';
@@ -624,11 +661,12 @@
   function renderTujuanWa() {
     const list = state.pengaturan.waKontak;
     $('waTujuanList').innerHTML = list.length
-      ? list.map((k) => '<button type="button" class="btn btn-block wa-tujuan ' + (navigator.share ? 'btn-wa-outline' : 'btn-wa btn-lg') + '" data-id="' + esc(k.id) + '">' +
+      ? list.map((k) => '<button type="button" class="btn btn-block wa-tujuan ' + 'btn-wa-outline' + '" data-id="' + esc(k.id) + '">' +
           '<span class="wa-tujuan-teks">💬 Kirim ke <strong>' + esc(k.nama) + '</strong><small>+' + esc(nomorWa(k.nomor)) + '</small></span></button>').join('')
       : '<p class="note">Belum ada nomor tersimpan. Tambahkan di <strong>Pengaturan → WhatsApp untuk Buku Usaha</strong>, atau pilih kontak di bawah.</p>';
     const nama = list.map((k) => k.nama);
-    $('waSekaligusNama').textContent = nama.length ? nama.join(', ') : 'PP, MM';
+    $('waSekaligusNama').textContent = nama.join(', ');
+    $('waSemuaLabel').textContent = nama.join(' & ');
     $('waKirimLain').className = 'btn btn-block ' + (list.length ? 'btn-outline' : 'btn-wa btn-lg');
   }
   function tutupWa() {
@@ -636,8 +674,8 @@
     document.body.style.overflow = '';
   }
   /** Buka WhatsApp; nomor kosong = pilih kontak/grup sendiri. Lembar tetap terbuka agar bisa kirim ke nomor berikutnya. */
-  function kirimWa(nomor, tombol) {
-    const url = 'https://wa.me/' + nomorWa(nomor) + '?text=' + encodeURIComponent($('waTeks').value);
+  function kirimWa(nomor, tombol, teks) {
+    const url = 'https://wa.me/' + nomorWa(nomor) + '?text=' + encodeURIComponent(teks == null ? $('waTeks').value : teks);
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
@@ -755,7 +793,9 @@
   function renderPilihanAksi() {
     const sel = $('setWaAksi');
     let html = '';
-    if (navigator.share) html += '<option value="sekaligus">🚀 Langsung kirim sekaligus (pilih chat di WhatsApp)</option>';
+    const nama = state.pengaturan.waKontak.map((k) => k.nama).join(' & ');
+    if (state.pengaturan.waKontak.length) html += '<option value="sekaligus">🚀 Langsung kirim ke semua nomor (' + esc(nama) + ')</option>';
+    if (navigator.share) html += '<option value="bagikan">📤 Buka menu Bagikan (pilih chat sendiri)</option>';
     state.pengaturan.waKontak.forEach((k) => { html += '<option value="kontak:' + esc(k.id) + '">💬 Langsung kirim ke ' + esc(k.nama) + '</option>'; });
     html += '<option value="lembar">📝 Tampilkan teks dulu (bisa diedit)</option>';
     html += '<option value="mati">⛔ Jangan kirim apa-apa</option>';
@@ -1128,7 +1168,8 @@
       if (k) kirimWa(k.nomor, b);
     });
     $('waKirimLain').onclick = () => kirimWa('');
-    $('waSekaligus').onclick = bagikanWa;
+    $('waSekaligus').onclick = () => kirimKeSemua($('waTeks').value);
+    $('waBagikan').onclick = bagikanWa;
     $('waSalin').onclick = salinWa;
     $('waTutup').onclick = tutupWa;
     $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });
@@ -1215,7 +1256,7 @@
 
     // Saat aplikasi dibuka lagi (mis. keesokan hari), segarkan label "Hari ini" & pengingat
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') { renderDaftar(); cekPengingatBackup(); renderInfoBackup(); }
+      if (document.visibilityState === 'visible') { kembaliDariWa(); renderDaftar(); cekPengingatBackup(); renderInfoBackup(); }
     });
   }
 
