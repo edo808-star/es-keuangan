@@ -34,12 +34,13 @@ es-keuangan/
 9. Backup & Restore JSON + pengingat jika lebih dari 7 hari belum backup
 10. **Dua buku: Pribadi & Usaha** — pilih di bagian atas layar, masing-masing punya saldo, daftar, grafik sendiri
 11. **Teks WhatsApp otomatis (buku Usaha)** — setiap uang masuk/keluar langsung dibuatkan teks saldo berjalan:
-    `993,845 + 35,000 = 1,028,845` atau `1,028,845 - 4,306,000 = -3,277,155`
+    `993,845 + 35,000 = 1,028,845 (Penjualan)` atau `1,028,845 - 4,306,000 = -3,277,155 (Semen & seng ASIM)`
+    — keterangan dalam kurung diambil dari catatan (atau nama kategori jika catatan kosong)
     lalu tinggal ketuk *Kirim ke WhatsApp*. Koreksi dan pembatalan transaksi juga dibuatkan teksnya.
 
 ### Memakai buku Usaha
 1. Ketuk **🏪 Usaha** di atas.
-2. Pertama kali, catat **saldo awal** usaha sebagai *Pemasukan* (kategori bebas, catatan "Saldo awal") supaya angka saldo sama dengan catatan Anda sekarang.
+2. Pertama kali, isi **Pengaturan → 💰 Saldo Awal** untuk Pribadi dan Usaha (terpisah; boleh minus dengan tanda `-`). Saldo yang tampil di Beranda = saldo awal + pemasukan − pengeluaran.
 3. (Opsional) Di **Pengaturan → WhatsApp untuk Buku Usaha**, isi nomor tujuan (mis. `0812…`) supaya teks langsung terkirim ke orang itu. Kosongkan jika ingin memilih kontak/grup sendiri.
 4. Untuk mengirim ulang teks transaksi lama: ketuk transaksinya → **💬 Kirim Laporan ke WhatsApp**.
 

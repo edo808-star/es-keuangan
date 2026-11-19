@@ -48,9 +48,9 @@
 
       <div class="summary">
         <div class="sum-card sum-saldo">
-          <span class="sum-label" id="sumSaldoLabel">Saldo Pribadi bulan ini</span>
+          <span class="sum-label" id="sumSaldoLabel">Saldo Pribadi saat ini</span>
           <span class="sum-value" id="sumSaldo">Rp 0</span>
-          <span class="sum-total">Saldo keseluruhan: <strong id="sumTotal">Rp 0</strong></span>
+          <span class="sum-total"><span id="sumTotalLabel">Selisih bulan ini: </span><strong id="sumTotal">Rp 0</strong></span>
         </div>
         <div class="sum-row">
           <div class="sum-card sum-masuk">
@@ -120,8 +120,24 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">💰 Saldo Awal</h2>
+        <p class="card-sub">Isi saldo masing-masing buku saat mulai memakai aplikasi. Saldo Pribadi dan Usaha dihitung terpisah. Ketik tanda minus (-) di depan jika saldonya minus.</p>
+        <form id="formSaldoAwal" autocomplete="off">
+          <label class="field">
+            <span>👤 Saldo awal Pribadi</span>
+            <div class="amount-wrap"><span class="amount-prefix small">Rp</span><input type="text" id="setAwalPribadi" inputmode="text" placeholder="0"></div>
+          </label>
+          <label class="field">
+            <span>🏪 Saldo awal Usaha</span>
+            <div class="amount-wrap"><span class="amount-prefix small">Rp</span><input type="text" id="setAwalUsaha" inputmode="text" placeholder="0"></div>
+          </label>
+          <button type="submit" class="btn btn-primary btn-block">Simpan Saldo Awal</button>
+        </form>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">🏪 WhatsApp untuk Buku Usaha</h2>
-        <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845</code></p>
+        <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845 (keterangan)</code></p>
         <form id="formUsaha" autocomplete="off">
           <label class="field">
             <span>Nomor WhatsApp tujuan <em class="muted">(opsional)</em></span>

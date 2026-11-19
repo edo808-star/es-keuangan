@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -17,7 +17,7 @@
     transaksi: [],
     bulan: bulanIni(),
     buku: 'pribadi',            // buku aktif: 'pribadi' | 'usaha'
-    pengaturan: { namaUsaha: '', waNomor: '', waOtomatis: true },
+    pengaturan: { namaUsaha: '', waNomor: '', waOtomatis: true, saldoAwal: { pribadi: 0, usaha: 0 } },
     filterJenis: 'semua',
     filterKategori: '',
     view: 'beranda',
@@ -145,7 +145,18 @@
     state.transaksi = tx;
     const [peng, bukuAktif] = await Promise.all([DB.getMeta('pengaturan'), DB.getMeta('bukuAktif')]);
     if (peng) state.pengaturan = Object.assign({}, state.pengaturan, peng);
+    state.pengaturan.saldoAwal = normalSaldoAwal(state.pengaturan.saldoAwal);
     if (bukuAktif === 'usaha' || bukuAktif === 'pribadi') state.buku = bukuAktif;
+  }
+
+  function normalSaldoAwal(o) {
+    const n = (v) => (isFinite(Number(v)) ? Math.round(Number(v)) : 0);
+    return { pribadi: n(o && o.pribadi), usaha: n(o && o.usaha) };
+  }
+  /** Saldo saat ini sebuah buku = saldo awal + semua pemasukan − semua pengeluaran */
+  function saldoBuku(buku) {
+    const list = transaksiBuku(buku);
+    return (state.pengaturan.saldoAwal[buku] || 0) + total(list, 'masuk') - total(list, 'keluar');
   }
 
   /** Transaksi milik buku tertentu (default: buku aktif) */
@@ -171,13 +182,13 @@
     const saldo = masuk - keluar;
     $('sumMasuk').textContent = rupiah(masuk);
     $('sumKeluar').textContent = rupiah(keluar);
-    $('sumSaldo').textContent = rupiah(saldo);
-    $('sumSaldo').classList.toggle('neg', saldo < 0);
-    $('sumSaldoLabel').textContent = 'Saldo ' + NAMA_BUKU[state.buku] + ' bulan ini';
-    const semua = transaksiBuku();
-    const totalSemua = total(semua, 'masuk') - total(semua, 'keluar');
-    $('sumTotal').textContent = rupiah(totalSemua);
-    $('sumTotal').classList.toggle('neg', totalSemua < 0);
+    const sekarang = saldoBuku(state.buku);
+    $('sumSaldo').textContent = rupiah(sekarang);
+    $('sumSaldo').classList.toggle('neg', sekarang < 0);
+    $('sumSaldoLabel').textContent = 'Saldo ' + NAMA_BUKU[state.buku] + ' saat ini';
+    $('sumTotalLabel').textContent = 'Selisih ' + labelBulan(state.bulan) + ': ';
+    $('sumTotal').textContent = rupiah(saldo, true);
+    $('sumTotal').classList.toggle('neg', saldo < 0);
   }
 
   function renderBuku() {
@@ -528,13 +539,12 @@
    * jenisLaporan: 'baru' | 'koreksi' | 'batal'. Mengembalikan null jika saldo tidak berubah.
    */
   function teksWa(jenisLaporan, tx, sebelum) {
-    const semua = transaksiBuku('usaha');
-    const sesudah = total(semua, 'masuk') - total(semua, 'keluar');
+    const sesudah = saldoBuku('usaha');
     let perubahan;
     const baris = [];
     if (jenisLaporan === 'batal') {
       perubahan = -efek(tx);
-      baris.push('Batal: ' + angkaKoma(tx.jumlah) + (tx.catatan ? ' (' + tx.catatan + ')' : ''));
+      baris.push('Batal: ' + (tx.jenis === 'masuk' ? '+' : '-') + angkaKoma(tx.jumlah));
     } else if (jenisLaporan === 'koreksi' && sebelum && sebelum.buku === 'usaha') {
       perubahan = efek(tx) - efek(sebelum);
       if (perubahan === 0) return null;
@@ -543,7 +553,9 @@
       perubahan = efek(tx);
     }
     const awal = sesudah - perubahan;
-    baris.push(angkaKoma(awal) + (perubahan < 0 ? ' - ' : ' + ') + angkaKoma(Math.abs(perubahan)) + ' = ' + angkaKoma(sesudah));
+    // Keterangan di belakang saldo sesudah: catatan, atau nama kategori jika catatan kosong
+    const ket = (tx.catatan || '').trim() || namaKategori(tx.kategori);
+    baris.push(angkaKoma(awal) + (perubahan < 0 ? ' - ' : ' + ') + angkaKoma(Math.abs(perubahan)) + ' = ' + angkaKoma(sesudah) + ' (' + ket + ')');
     return baris.join('\n');
   }
   function nomorWa(n) {
@@ -593,14 +605,35 @@
   function renderPengaturanUsaha() {
     $('setWaNomor').value = state.pengaturan.waNomor || '';
     $('setWaOtomatis').checked = state.pengaturan.waOtomatis !== false;
+    const fmt = (n) => (n < 0 ? '-' : '') + (n ? titikRibuan(n) : '');
+    $('setAwalPribadi').value = fmt(state.pengaturan.saldoAwal.pribadi);
+    $('setAwalUsaha').value = fmt(state.pengaturan.saldoAwal.usaha);
+  }
+  function angkaBertanda(s) {
+    const n = angkaDariInput(s);
+    return /^\s*-/.test(String(s)) ? -n : n;
+  }
+  function formatInputBertanda(e) {
+    const neg = /^\s*-/.test(e.target.value);
+    const n = angkaDariInput(e.target.value);
+    e.target.value = (neg ? '-' : '') + (n ? titikRibuan(Math.min(n, 999999999999999)) : '');
+  }
+  async function simpanSaldoAwal(e) {
+    e.preventDefault();
+    state.pengaturan = Object.assign({}, state.pengaturan, {
+      saldoAwal: { pribadi: angkaBertanda($('setAwalPribadi').value), usaha: angkaBertanda($('setAwalUsaha').value) }
+    });
+    await DB.setMeta('pengaturan', state.pengaturan);
+    renderSemua();
+    renderPengaturanUsaha();
+    toast('Saldo awal disimpan');
   }
   async function simpanPengaturanUsaha(e) {
     e.preventDefault();
-    state.pengaturan = {
-      namaUsaha: state.pengaturan.namaUsaha || '',
+    state.pengaturan = Object.assign({}, state.pengaturan, {
       waNomor: $('setWaNomor').value.trim(),
       waOtomatis: $('setWaOtomatis').checked
-    };
+    });
     await DB.setMeta('pengaturan', state.pengaturan);
     toast('Pengaturan usaha disimpan');
   }
@@ -757,7 +790,8 @@
     const pengaturan = obj.pengaturan && typeof obj.pengaturan === 'object' ? {
       namaUsaha: String(obj.pengaturan.namaUsaha || '').slice(0, 60),
       waNomor: String(obj.pengaturan.waNomor || '').slice(0, 20),
-      waOtomatis: obj.pengaturan.waOtomatis !== false
+      waOtomatis: obj.pengaturan.waOtomatis !== false,
+      saldoAwal: normalSaldoAwal(obj.pengaturan.saldoAwal)
     } : null;
     return { kategori, transaksi, pengaturan, diekspor_pada: obj.diekspor_pada };
   }
@@ -793,7 +827,8 @@
       info('Restore gagal', esc(ex.message));
       return;
     }
-    if (data.pengaturan && (pilihan === 'ganti' || !state.pengaturan.waNomor)) {
+    // Ganti semua: pengaturan & saldo awal ikut dari backup. Gabungkan: pengaturan di HP ini dipertahankan.
+    if (data.pengaturan && pilihan === 'ganti') {
       await DB.setMeta('pengaturan', data.pengaturan);
     }
     await muatData();
@@ -948,6 +983,9 @@
     $('waTutup').onclick = tutupWa;
     $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });
     $('formUsaha').addEventListener('submit', simpanPengaturanUsaha);
+    $('formSaldoAwal').addEventListener('submit', simpanSaldoAwal);
+    $('setAwalPribadi').addEventListener('input', formatInputBertanda);
+    $('setAwalUsaha').addEventListener('input', formatInputBertanda);
     $('prevMonth').onclick = () => { state.bulan = geserBulan(state.bulan, -1); renderSemua(); };
     $('nextMonth').onclick = () => { state.bulan = geserBulan(state.bulan, 1); renderSemua(); };
     $('monthLabel').onclick = () => { state.bulan = bulanIni(); renderSemua(); };
