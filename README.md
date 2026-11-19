@@ -41,7 +41,7 @@ es-keuangan/
 ### Memakai buku Usaha
 1. Ketuk **🏪 Usaha** di atas.
 2. Pertama kali, isi **Pengaturan → 💰 Saldo Awal** untuk Pribadi dan Usaha (terpisah; boleh minus dengan tanda `-`). Saldo yang tampil di Beranda = saldo awal + pemasukan − pengeluaran.
-3. (Opsional) Di **Pengaturan → WhatsApp untuk Buku Usaha**, isi nomor tujuan (mis. `0812…`) supaya teks langsung terkirim ke orang itu. Kosongkan jika ingin memilih kontak/grup sendiri.
+3. (Opsional) Di **Pengaturan → WhatsApp untuk Buku Usaha**, tambahkan satu atau beberapa nomor tujuan (nama + nomor). Saat teks muncul, setiap nomor punya tombol **Kirim ke …** sendiri; untuk grup pakai **Pilih kontak / grup lain**.
 4. Untuk mengirim ulang teks transaksi lama: ketuk transaksinya → **💬 Kirim Laporan ke WhatsApp**.
 
 ---

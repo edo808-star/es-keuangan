@@ -3,7 +3,7 @@
  * sehingga aplikasi bisa dibuka tanpa internet sama sekali.
  * Setiap kali ada file yang diubah, NAIKKAN nomor VERSI di bawah agar HP mengunduh versi baru.
  */
-const VERSI = 'v1.2.1';
+const VERSI = 'v1.3.0';
 const CACHE = 'es-keuangan-' + VERSI;
 
 const FILE_APP = [

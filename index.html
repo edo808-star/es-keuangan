@@ -142,18 +142,18 @@
       <div class="card">
         <h2 class="card-title">🏪 WhatsApp untuk Buku Usaha</h2>
         <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845 (keterangan)</code></p>
-        <form id="formUsaha" autocomplete="off">
-          <label class="field">
-            <span>Nomor WhatsApp tujuan <em class="muted">(opsional)</em></span>
-            <input type="tel" id="setWaNomor" inputmode="tel" maxlength="20" placeholder="mis. 0812 3456 7890">
-          </label>
-          <p class="note">Kosongkan nomor jika ingin memilih kontak/grup sendiri setiap kali mengirim.</p>
-          <label class="check">
-            <input type="checkbox" id="setWaOtomatis" checked>
-            <span>Tampilkan teks WhatsApp otomatis setelah menyimpan transaksi Usaha</span>
-          </label>
-          <button type="submit" class="btn btn-primary btn-block">Simpan Pengaturan</button>
+        <h3 class="subhead">Nomor WhatsApp tujuan</h3>
+        <ul class="kat-list" id="waList"></ul>
+        <form id="formWaKontak" class="wa-form" autocomplete="off">
+          <input type="text" id="waKontakNama" maxlength="30" placeholder="Nama (mis. PP)" aria-label="Nama kontak" required>
+          <input type="tel" id="waKontakNomor" inputmode="tel" maxlength="20" placeholder="Nomor (mis. 0812 3456 7890)" aria-label="Nomor WhatsApp" required>
+          <button type="submit" class="btn btn-primary">＋ Tambah Nomor</button>
         </form>
+        <p class="note">Setiap nomor punya tombol kirim sendiri. Untuk grup WhatsApp, pakai tombol <strong>"Pilih kontak / grup lain"</strong> saat mengirim.</p>
+        <label class="check">
+          <input type="checkbox" id="setWaOtomatis" checked>
+          <span>Tampilkan teks WhatsApp otomatis setelah menyimpan transaksi Usaha</span>
+        </label>
       </div>
 
       <div class="card">
@@ -258,11 +258,11 @@
       <h2 id="waTitle">💬 Kirim Saldo Usaha ke WhatsApp</h2>
       <p class="note">Teks dibuat otomatis. Anda bisa mengubahnya sebelum dikirim.</p>
       <textarea id="waTeks" rows="3" aria-label="Teks laporan WhatsApp"></textarea>
-      <p class="note" id="waTujuanInfo"></p>
-      <button type="button" class="btn btn-wa btn-block btn-lg" id="waKirim">Kirim ke WhatsApp</button>
+      <div id="waTujuanList"></div>
+      <button type="button" class="btn btn-outline btn-block" id="waKirimLain">💬 Pilih kontak / grup lain…</button>
       <button type="button" class="btn btn-outline btn-block" id="waBagikan" hidden>📤 Bagikan ke aplikasi lain…</button>
       <button type="button" class="btn btn-outline btn-block" id="waSalin">📋 Salin Teks</button>
-      <button type="button" class="btn btn-ghost btn-block" id="waTutup">Tutup</button>
+      <button type="button" class="btn btn-ghost btn-block" id="waTutup">Selesai</button>
     </div>
   </div>
 

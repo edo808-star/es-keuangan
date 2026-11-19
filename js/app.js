@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.2.1';
+  const APP_VERSION = '1.3.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -17,7 +17,7 @@
     transaksi: [],
     bulan: bulanIni(),
     buku: 'pribadi',            // buku aktif: 'pribadi' | 'usaha'
-    pengaturan: { namaUsaha: '', waNomor: '', waOtomatis: true, saldoAwal: { pribadi: 0, usaha: 0 } },
+    pengaturan: { namaUsaha: '', waKontak: [], waOtomatis: true, saldoAwal: { pribadi: 0, usaha: 0 } },
     filterJenis: 'semua',
     filterKategori: '',
     view: 'beranda',
@@ -146,9 +146,26 @@
     const [peng, bukuAktif] = await Promise.all([DB.getMeta('pengaturan'), DB.getMeta('bukuAktif')]);
     if (peng) state.pengaturan = Object.assign({}, state.pengaturan, peng);
     state.pengaturan.saldoAwal = normalSaldoAwal(state.pengaturan.saldoAwal);
+    state.pengaturan.waKontak = normalKontak(state.pengaturan);
+    if ('waNomor' in state.pengaturan) {
+      // simpan hasil pemindahan nomor lama ke daftar nomor
+      delete state.pengaturan.waNomor;
+      DB.setMeta('pengaturan', state.pengaturan).catch(() => {});
+    }
     if (bukuAktif === 'usaha' || bukuAktif === 'pribadi') state.buku = bukuAktif;
   }
 
+  /** Daftar nomor WhatsApp; nomor tunggal versi lama (waNomor) otomatis dipindah ke daftar */
+  function normalKontak(p) {
+    let list = Array.isArray(p && p.waKontak) ? p.waKontak : [];
+    list = list.filter((k) => k && nomorWa(k.nomor)).map((k) => ({
+      id: String(k.id || DB.buatId('wa')), nama: String(k.nama || 'Kontak').slice(0, 30), nomor: String(k.nomor).slice(0, 20)
+    }));
+    if (!list.length && p && p.waNomor && nomorWa(p.waNomor)) {
+      list.push({ id: DB.buatId('wa'), nama: 'Kontak 1', nomor: String(p.waNomor).slice(0, 20) });
+    }
+    return list;
+  }
   function normalSaldoAwal(o) {
     const n = (v) => (isFinite(Number(v)) ? Math.round(Number(v)) : 0);
     return { pribadi: n(o && o.pribadi), usaha: n(o && o.usaha) };
@@ -566,20 +583,27 @@
   }
   function bukaWa(teks) {
     $('waTeks').value = teks;
-    const no = nomorWa(state.pengaturan.waNomor);
-    $('waTujuanInfo').textContent = no ? 'Akan dikirim ke nomor +' + no + ' (ubah di Pengaturan).' : 'Anda akan memilih kontak atau grup tujuan di WhatsApp.';
+    renderTujuanWa();
     $('waBagikan').hidden = !navigator.share;
     $('waOverlay').hidden = false;
     $('toast').hidden = true;
     document.body.style.overflow = 'hidden';
   }
+  function renderTujuanWa() {
+    const list = state.pengaturan.waKontak;
+    $('waTujuanList').innerHTML = list.length
+      ? list.map((k) => '<button type="button" class="btn btn-wa btn-block btn-lg wa-tujuan" data-id="' + esc(k.id) + '">' +
+          '<span class="wa-tujuan-teks">💬 Kirim ke <strong>' + esc(k.nama) + '</strong><small>+' + esc(nomorWa(k.nomor)) + '</small></span></button>').join('')
+      : '<p class="note">Belum ada nomor tersimpan. Tambahkan di <strong>Pengaturan → WhatsApp untuk Buku Usaha</strong>, atau pilih kontak di bawah.</p>';
+    $('waKirimLain').className = 'btn btn-block ' + (list.length ? 'btn-outline' : 'btn-wa btn-lg');
+  }
   function tutupWa() {
     $('waOverlay').hidden = true;
     document.body.style.overflow = '';
   }
-  function kirimWa() {
-    const no = nomorWa(state.pengaturan.waNomor);
-    const url = 'https://wa.me/' + no + '?text=' + encodeURIComponent($('waTeks').value);
+  /** Buka WhatsApp; nomor kosong = pilih kontak/grup sendiri. Lembar tetap terbuka agar bisa kirim ke nomor berikutnya. */
+  function kirimWa(nomor, tombol) {
+    const url = 'https://wa.me/' + nomorWa(nomor) + '?text=' + encodeURIComponent($('waTeks').value);
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
@@ -587,7 +611,11 @@
     document.body.appendChild(a);
     a.click();
     a.remove();
-    tutupWa();
+    if (tombol) {
+      tombol.classList.add('terkirim');
+      const t = tombol.querySelector('.wa-tujuan-teks');
+      if (t && !tombol.querySelector('.cek')) t.insertAdjacentHTML('afterbegin', '<span class="cek">✓ </span>');
+    }
   }
   async function bagikanWa() {
     try { await navigator.share({ text: $('waTeks').value }); tutupWa(); } catch (_) { /* dibatalkan */ }
@@ -603,7 +631,7 @@
     toast('Teks disalin — tempel di WhatsApp');
   }
   function renderPengaturanUsaha() {
-    $('setWaNomor').value = state.pengaturan.waNomor || '';
+    renderDaftarKontak();
     $('setWaOtomatis').checked = state.pengaturan.waOtomatis !== false;
     const fmt = (n) => (n < 0 ? '-' : '') + (n ? titikRibuan(n) : '');
     $('setAwalPribadi').value = fmt(state.pengaturan.saldoAwal.pribadi);
@@ -628,14 +656,64 @@
     renderPengaturanUsaha();
     toast('Saldo awal disimpan');
   }
-  async function simpanPengaturanUsaha(e) {
-    e.preventDefault();
-    state.pengaturan = Object.assign({}, state.pengaturan, {
-      waNomor: $('setWaNomor').value.trim(),
-      waOtomatis: $('setWaOtomatis').checked
-    });
+  function renderDaftarKontak() {
+    const list = state.pengaturan.waKontak;
+    $('waList').innerHTML = list.length ? list.map((k) =>
+      '<li><span class="kat-name">' + esc(k.nama) + '<small class="wa-no">+' + esc(nomorWa(k.nomor)) + '</small></span>' +
+      '<button class="kat-btn" data-aksi="ubah" data-id="' + esc(k.id) + '" aria-label="Ubah ' + esc(k.nama) + '">✏️</button>' +
+      '<button class="kat-btn" data-aksi="hapus" data-id="' + esc(k.id) + '" aria-label="Hapus ' + esc(k.nama) + '">🗑</button></li>'
+    ).join('') : '<li class="muted">Belum ada nomor. Tambahkan di bawah.</li>';
+  }
+  async function simpanKontak() {
     await DB.setMeta('pengaturan', state.pengaturan);
-    toast('Pengaturan usaha disimpan');
+    renderDaftarKontak();
+  }
+  function cekNomor(nomor) {
+    const d = nomorWa(nomor);
+    return d.length >= 10 && d.length <= 15;
+  }
+  async function tambahKontak(e) {
+    e.preventDefault();
+    const nama = $('waKontakNama').value.trim();
+    const nomor = $('waKontakNomor').value.trim();
+    if (!nama) return;
+    if (!cekNomor(nomor)) { info('Nomor tidak valid', 'Periksa lagi nomor WhatsApp-nya, mis. <strong>0812 3456 7890</strong>.'); return; }
+    if (state.pengaturan.waKontak.some((k) => nomorWa(k.nomor) === nomorWa(nomor))) { info('Nomor sudah ada', 'Nomor ini sudah tersimpan.'); return; }
+    state.pengaturan.waKontak.push({ id: DB.buatId('wa'), nama, nomor });
+    await simpanKontak();
+    $('waKontakNama').value = '';
+    $('waKontakNomor').value = '';
+    toast('Nomor ' + nama + ' ditambahkan');
+  }
+  async function ubahKontak(id) {
+    const k = state.pengaturan.waKontak.find((x) => x.id === id);
+    if (!k) return;
+    const hasil = await dialog('Ubah Nomor WhatsApp',
+      '<label class="field"><span>Nama</span><input type="text" id="dlgWaNama" maxlength="30" value="' + esc(k.nama) + '"></label>' +
+      '<label class="field"><span>Nomor</span><input type="tel" id="dlgWaNomor" inputmode="tel" maxlength="20" value="' + esc(k.nomor) + '"></label>',
+      [{ label: 'Simpan', nilai: 'simpan', kelas: 'btn-primary' }, { label: 'Batal', nilai: null, kelas: 'btn-ghost' }]);
+    if (hasil !== 'simpan') return;
+    const nama = $('dlgWaNama').value.trim();
+    const nomor = $('dlgWaNomor').value.trim();
+    if (!nama || !cekNomor(nomor)) { info('Data tidak valid', 'Nama tidak boleh kosong dan nomor harus nomor WhatsApp yang benar.'); return; }
+    k.nama = nama;
+    k.nomor = nomor;
+    await simpanKontak();
+    toast('Nomor diperbarui');
+  }
+  async function hapusKontak(id) {
+    const k = state.pengaturan.waKontak.find((x) => x.id === id);
+    if (!k) return;
+    const ok = await konfirmasi('Hapus nomor?', 'Nomor <strong>' + esc(k.nama) + '</strong> (+' + esc(nomorWa(k.nomor)) + ') akan dihapus dari daftar.', 'Ya, Hapus', true);
+    if (!ok) return;
+    state.pengaturan.waKontak = state.pengaturan.waKontak.filter((x) => x.id !== id);
+    await simpanKontak();
+    toast('Nomor dihapus');
+  }
+  async function simpanWaOtomatis() {
+    state.pengaturan.waOtomatis = $('setWaOtomatis').checked;
+    await DB.setMeta('pengaturan', state.pengaturan);
+    toast(state.pengaturan.waOtomatis ? 'Teks WhatsApp otomatis: aktif' : 'Teks WhatsApp otomatis: nonaktif');
   }
 
   /* ============ Kategori ============ */
@@ -789,7 +867,7 @@
     });
     const pengaturan = obj.pengaturan && typeof obj.pengaturan === 'object' ? {
       namaUsaha: String(obj.pengaturan.namaUsaha || '').slice(0, 60),
-      waNomor: String(obj.pengaturan.waNomor || '').slice(0, 20),
+      waKontak: normalKontak(obj.pengaturan),
       waOtomatis: obj.pengaturan.waOtomatis !== false,
       saldoAwal: normalSaldoAwal(obj.pengaturan.saldoAwal)
     } : null;
@@ -989,12 +1067,24 @@
       tutupForm();
       bukaWa(teksWa('baru', tx));
     };
-    $('waKirim').onclick = kirimWa;
+    $('waTujuanList').addEventListener('click', (e) => {
+      const b = e.target.closest('.wa-tujuan');
+      if (!b) return;
+      const k = state.pengaturan.waKontak.find((x) => x.id === b.dataset.id);
+      if (k) kirimWa(k.nomor, b);
+    });
+    $('waKirimLain').onclick = () => kirimWa('');
     $('waBagikan').onclick = bagikanWa;
     $('waSalin').onclick = salinWa;
     $('waTutup').onclick = tutupWa;
     $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });
-    $('formUsaha').addEventListener('submit', simpanPengaturanUsaha);
+    $('formWaKontak').addEventListener('submit', tambahKontak);
+    $('setWaOtomatis').addEventListener('change', simpanWaOtomatis);
+    $('waList').addEventListener('click', (e) => {
+      const b = e.target.closest('.kat-btn');
+      if (!b) return;
+      if (b.dataset.aksi === 'ubah') ubahKontak(b.dataset.id); else hapusKontak(b.dataset.id);
+    });
     $('formSaldoAwal').addEventListener('submit', simpanSaldoAwal);
     $('setAwalPribadi').addEventListener('input', formatInputBertanda);
     $('setAwalUsaha').addEventListener('input', formatInputBertanda);

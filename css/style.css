@@ -320,3 +320,10 @@ body.buku-usaha .fab { background: var(--usaha); box-shadow: 0 6px 20px rgba(29,
 .amount-prefix.small { font-size: 16px; }
 #setAwalPribadi, #setAwalUsaha { padding-left: 46px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .banner-update { background: var(--primary-soft); border: 1px solid var(--primary); }
+.wa-form { display: grid; gap: 8px; margin: 10px 0; }
+.wa-no { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+.wa-tujuan { justify-content: flex-start; text-align: left; }
+.wa-tujuan-teks { display: block; }
+.wa-tujuan-teks small { display: block; font-weight: 400; font-size: 13px; opacity: .85; }
+.wa-tujuan.terkirim { background: color-mix(in srgb, var(--wa) 70%, #000); }
+#waTujuanList { margin-top: 4px; }
