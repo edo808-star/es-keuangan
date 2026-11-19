@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const HARI_MS = 24 * 60 * 60 * 1000;
   const BATAS_BACKUP_HARI = 7;
   const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -10,11 +10,14 @@
   const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   const $ = (id) => document.getElementById(id);
+  const NAMA_BUKU = { pribadi: 'Pribadi', usaha: 'Usaha' };
 
   const state = {
     kategori: [],
     transaksi: [],
     bulan: bulanIni(),
+    buku: 'pribadi',            // buku aktif: 'pribadi' | 'usaha'
+    pengaturan: { namaUsaha: '', waNomor: '', waOtomatis: true },
     filterJenis: 'semua',
     filterKategori: '',
     view: 'beranda',
@@ -137,14 +140,22 @@
   async function muatData() {
     const [kat, tx] = await Promise.all([DB.semua('kategori'), DB.semua('transaksi')]);
     state.kategori = kat;
+    // Transaksi lama (sebelum ada fitur 2 buku) otomatis masuk buku Pribadi
+    tx.forEach((t) => { if (t.buku !== 'usaha') t.buku = 'pribadi'; });
     state.transaksi = tx;
+    const [peng, bukuAktif] = await Promise.all([DB.getMeta('pengaturan'), DB.getMeta('bukuAktif')]);
+    if (peng) state.pengaturan = Object.assign({}, state.pengaturan, peng);
+    if (bukuAktif === 'usaha' || bukuAktif === 'pribadi') state.buku = bukuAktif;
   }
 
-  function transaksiBulan(ym) { return state.transaksi.filter((t) => t.tanggal.slice(0, 7) === ym); }
+  /** Transaksi milik buku tertentu (default: buku aktif) */
+  function transaksiBuku(buku) { const b = buku || state.buku; return state.transaksi.filter((t) => t.buku === b); }
+  function transaksiBulan(ym, buku) { return transaksiBuku(buku).filter((t) => t.tanggal.slice(0, 7) === ym); }
   function total(list, jenis) { return list.reduce((s, t) => (t.jenis === jenis ? s + t.jumlah : s), 0); }
 
   /* ============ Render ============ */
   function renderSemua() {
+    renderBuku();
     $('monthLabel').textContent = labelBulan(state.bulan);
     renderRingkasan();
     renderFilterKategori();
@@ -162,6 +173,31 @@
     $('sumKeluar').textContent = rupiah(keluar);
     $('sumSaldo').textContent = rupiah(saldo);
     $('sumSaldo').classList.toggle('neg', saldo < 0);
+    $('sumSaldoLabel').textContent = 'Saldo ' + NAMA_BUKU[state.buku] + ' bulan ini';
+    const semua = transaksiBuku();
+    const totalSemua = total(semua, 'masuk') - total(semua, 'keluar');
+    $('sumTotal').textContent = rupiah(totalSemua);
+    $('sumTotal').classList.toggle('neg', totalSemua < 0);
+  }
+
+  function renderBuku() {
+    const usaha = state.buku === 'usaha';
+    document.body.classList.toggle('buku-usaha', usaha);
+    document.querySelectorAll('.buku-btn').forEach((b) => {
+      const aktif = b.dataset.buku === state.buku;
+      b.classList.toggle('active', aktif);
+      b.setAttribute('aria-checked', aktif);
+    });
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', usaha ? '#1d4ed8' : '#0b6e34');
+  }
+
+  function gantiBuku(buku) {
+    if (buku === state.buku) return;
+    state.buku = buku;
+    state.filterKategori = '';
+    DB.setMeta('bukuAktif', buku).catch(() => {});
+    renderSemua();
   }
 
   function renderFilterKategori() {
@@ -195,7 +231,7 @@
       const adaFilter = state.filterJenis !== 'semua' || state.filterKategori;
       wadah.innerHTML = '<div class="empty"><span class="big">📒</span>' +
         (adaFilter ? 'Tidak ada transaksi yang cocok dengan filter.' :
-          'Belum ada transaksi di ' + esc(labelBulan(state.bulan)) + '.<br>Ketuk tombol <strong>＋</strong> untuk menambah.') + '</div>';
+          'Belum ada transaksi ' + NAMA_BUKU[state.buku] + ' di ' + esc(labelBulan(state.bulan)) + '.<br>Ketuk tombol <strong>＋</strong> untuk menambah.') + '</div>';
       $('listHint').hidden = true;
       return;
     }
@@ -263,7 +299,7 @@
     list.forEach((t) => { per[t.kategori] = (per[t.kategori] || 0) + t.jumlah; });
     const rows = Object.keys(per).map((id) => ({ nama: namaKategori(id), nilai: per[id] })).sort((a, b) => b.nilai - a.nilai);
     const totalKeluar = rows.reduce((s, r) => s + r.nilai, 0);
-    $('kategoriChartSub').textContent = labelBulan(state.bulan) + ' · total ' + rupiah(totalKeluar);
+    $('kategoriChartSub').textContent = NAMA_BUKU[state.buku] + ' · ' + labelBulan(state.bulan) + ' · total ' + rupiah(totalKeluar);
 
     const box = $('kategoriChartBox');
     if (chartKategori) { chartKategori.destroy(); chartKategori = null; }
@@ -383,6 +419,8 @@
     if (tx) {
       $('sheetTitle').textContent = 'Ubah Transaksi';
       $('txId').value = tx.id;
+      $('txBuku').value = tx.buku;
+      $('txKirimWa').hidden = tx.buku !== 'usaha';
       setFormJenis(tx.jenis, tx.kategori);
       $('txJumlah').value = titikRibuan(tx.jumlah);
       $('txTanggal').value = tx.tanggal;
@@ -392,6 +430,8 @@
     } else {
       $('sheetTitle').textContent = 'Tambah Transaksi';
       $('txId').value = '';
+      $('txBuku').value = state.buku;
+      $('txKirimWa').hidden = true;
       setFormJenis(state.filterJenis === 'masuk' ? 'masuk' : 'keluar');
       $('txJumlah').value = '';
       $('txTanggal').value = hariIni();
@@ -423,8 +463,10 @@
 
     const id = $('txId').value;
     const lama = id ? state.transaksi.find((t) => t.id === id) : null;
+    const sebelum = lama ? Object.assign({}, lama) : null;
     const tx = {
       id: id || DB.buatId('trx'),
+      buku: $('txBuku').value === 'usaha' ? 'usaha' : 'pribadi',
       tanggal,
       jenis: state.formJenis,
       kategori,
@@ -442,8 +484,14 @@
     if (lama) Object.assign(lama, tx); else state.transaksi.push(tx);
     tutupForm();
     if (tanggal.slice(0, 7) !== state.bulan) state.bulan = tanggal.slice(0, 7);
+    if (tx.buku !== state.buku) { state.buku = tx.buku; state.filterKategori = ''; DB.setMeta('bukuAktif', tx.buku).catch(() => {}); }
     renderSemua();
     toast(lama ? 'Perubahan disimpan' : 'Transaksi disimpan ✔');
+    // Buku Usaha: buat teks laporan WhatsApp otomatis
+    if (state.pengaturan.waOtomatis && (tx.buku === 'usaha' || (sebelum && sebelum.buku === 'usaha'))) {
+      const teks = tx.buku === 'usaha' ? teksWa(lama ? 'koreksi' : 'baru', tx, sebelum) : teksWa('batal', sebelum);
+      if (teks) bukaWa(teks);
+    }
     mintaPenyimpananPermanen();
     cekPengingatBackup();
   }
@@ -460,10 +508,101 @@
     state.transaksi = state.transaksi.filter((t) => t.id !== id);
     tutupForm();
     renderSemua();
+    if (tx.buku === 'usaha' && state.pengaturan.waOtomatis) bukaWa(teksWa('batal', tx));
     toast('Transaksi dihapus', {
       label: 'URUNGKAN',
       fn: async () => { await DB.simpan('transaksi', tx); state.transaksi.push(tx); renderSemua(); toast('Transaksi dikembalikan'); }
     });
+  }
+
+  /* ============ Teks WhatsApp (buku Usaha) ============ */
+  /** Angka dengan koma ribuan, format catatan WhatsApp: 1,028,845 / -3,277,155 */
+  function angkaKoma(n) {
+    const r = Math.round(n);
+    return (r < 0 ? '-' : '') + String(Math.abs(r)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function efek(t) { return t && t.buku === 'usaha' ? (t.jenis === 'masuk' ? t.jumlah : -t.jumlah) : 0; }
+  /**
+   * Teks WhatsApp format saldo berjalan:  saldo_sebelum ± jumlah = saldo_sesudah
+   * (state.transaksi sudah berisi kondisi SESUDAH perubahan)
+   * jenisLaporan: 'baru' | 'koreksi' | 'batal'. Mengembalikan null jika saldo tidak berubah.
+   */
+  function teksWa(jenisLaporan, tx, sebelum) {
+    const semua = transaksiBuku('usaha');
+    const sesudah = total(semua, 'masuk') - total(semua, 'keluar');
+    let perubahan;
+    const baris = [];
+    if (jenisLaporan === 'batal') {
+      perubahan = -efek(tx);
+      baris.push('Batal: ' + angkaKoma(tx.jumlah) + (tx.catatan ? ' (' + tx.catatan + ')' : ''));
+    } else if (jenisLaporan === 'koreksi' && sebelum && sebelum.buku === 'usaha') {
+      perubahan = efek(tx) - efek(sebelum);
+      if (perubahan === 0) return null;
+      baris.push('Koreksi: ' + (sebelum.jenis === 'masuk' ? '+' : '-') + angkaKoma(sebelum.jumlah) + ' → ' + (tx.jenis === 'masuk' ? '+' : '-') + angkaKoma(tx.jumlah));
+    } else {
+      perubahan = efek(tx);
+    }
+    const awal = sesudah - perubahan;
+    baris.push(angkaKoma(awal) + (perubahan < 0 ? ' - ' : ' + ') + angkaKoma(Math.abs(perubahan)) + ' = ' + angkaKoma(sesudah));
+    return baris.join('\n');
+  }
+  function nomorWa(n) {
+    let d = String(n || '').replace(/\D/g, '');
+    if (d.startsWith('0')) d = '62' + d.slice(1);
+    else if (d.startsWith('8')) d = '62' + d;
+    return d;
+  }
+  function bukaWa(teks) {
+    $('waTeks').value = teks;
+    const no = nomorWa(state.pengaturan.waNomor);
+    $('waTujuanInfo').textContent = no ? 'Akan dikirim ke nomor +' + no + ' (ubah di Pengaturan).' : 'Anda akan memilih kontak atau grup tujuan di WhatsApp.';
+    $('waBagikan').hidden = !navigator.share;
+    $('waOverlay').hidden = false;
+    $('toast').hidden = true;
+    document.body.style.overflow = 'hidden';
+  }
+  function tutupWa() {
+    $('waOverlay').hidden = true;
+    document.body.style.overflow = '';
+  }
+  function kirimWa() {
+    const no = nomorWa(state.pengaturan.waNomor);
+    const url = 'https://wa.me/' + no + '?text=' + encodeURIComponent($('waTeks').value);
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    tutupWa();
+  }
+  async function bagikanWa() {
+    try { await navigator.share({ text: $('waTeks').value }); tutupWa(); } catch (_) { /* dibatalkan */ }
+  }
+  async function salinWa() {
+    const teks = $('waTeks').value;
+    try {
+      await navigator.clipboard.writeText(teks);
+    } catch (_) {
+      $('waTeks').select();
+      document.execCommand('copy');
+    }
+    toast('Teks disalin — tempel di WhatsApp');
+  }
+  function renderPengaturanUsaha() {
+    $('setWaNomor').value = state.pengaturan.waNomor || '';
+    $('setWaOtomatis').checked = state.pengaturan.waOtomatis !== false;
+  }
+  async function simpanPengaturanUsaha(e) {
+    e.preventDefault();
+    state.pengaturan = {
+      namaUsaha: state.pengaturan.namaUsaha || '',
+      waNomor: $('setWaNomor').value.trim(),
+      waOtomatis: $('setWaOtomatis').checked
+    };
+    await DB.setMeta('pengaturan', state.pengaturan);
+    toast('Pengaturan usaha disimpan');
   }
 
   /* ============ Kategori ============ */
@@ -579,10 +718,11 @@
     const [kategori, transaksi] = await Promise.all([DB.semua('kategori'), DB.semua('transaksi')]);
     const data = {
       aplikasi: 'ES Keuangan',
-      format: 1,
+      format: 2,
       versi_aplikasi: APP_VERSION,
       diekspor_pada: new Date().toISOString(),
       jumlah_transaksi: transaksi.length,
+      pengaturan: state.pengaturan,
       kategori,
       transaksi
     };
@@ -609,12 +749,17 @@
         throw new Error('Data transaksi ke-' + (i + 1) + ' tidak valid.');
       }
       return {
-        id: String(t.id), tanggal: t.tanggal, jenis: t.jenis, kategori: String(t.kategori || ''), jumlah,
+        id: String(t.id), buku: t.buku === 'usaha' ? 'usaha' : 'pribadi', tanggal: t.tanggal, jenis: t.jenis, kategori: String(t.kategori || ''), jumlah,
         catatan: typeof t.catatan === 'string' ? t.catatan : '',
         dibuat_pada: t.dibuat_pada || new Date().toISOString()
       };
     });
-    return { kategori, transaksi, diekspor_pada: obj.diekspor_pada };
+    const pengaturan = obj.pengaturan && typeof obj.pengaturan === 'object' ? {
+      namaUsaha: String(obj.pengaturan.namaUsaha || '').slice(0, 60),
+      waNomor: String(obj.pengaturan.waNomor || '').slice(0, 20),
+      waOtomatis: obj.pengaturan.waOtomatis !== false
+    } : null;
+    return { kategori, transaksi, pengaturan, diekspor_pada: obj.diekspor_pada };
   }
 
   async function restoreDariFile(file) {
@@ -628,7 +773,8 @@
     }
     const tgl = data.diekspor_pada ? formatWaktu(data.diekspor_pada) : 'tidak diketahui';
     const pilihan = await dialog('Restore data',
-      '<p>File backup berisi <strong>' + data.transaksi.length + ' transaksi</strong> dan <strong>' + data.kategori.length + ' kategori</strong> (dibuat ' + esc(tgl) + ').</p>' +
+      '<p>File backup berisi <strong>' + data.transaksi.length + ' transaksi</strong> (' +
+        data.transaksi.filter((t) => t.buku === 'pribadi').length + ' Pribadi, ' + data.transaksi.filter((t) => t.buku === 'usaha').length + ' Usaha) dan <strong>' + data.kategori.length + ' kategori</strong> (dibuat ' + esc(tgl) + ').</p>' +
       '<p><strong>Ganti semua data</strong>: data di HP ini (' + state.transaksi.length + ' transaksi) dihapus dan diganti isi backup.<br>' +
       '<strong>Gabungkan</strong>: isi backup ditambahkan ke data yang ada (transaksi yang sama tidak dobel).</p>',
       [
@@ -647,9 +793,13 @@
       info('Restore gagal', esc(ex.message));
       return;
     }
+    if (data.pengaturan && (pilihan === 'ganti' || !state.pengaturan.waNomor)) {
+      await DB.setMeta('pengaturan', data.pengaturan);
+    }
     await muatData();
     state.filterKategori = '';
     renderSemua();
+    renderPengaturanUsaha();
     info('Restore berhasil', 'Data berhasil dipulihkan. Sekarang ada ' + state.transaksi.length + ' transaksi.');
   }
 
@@ -685,13 +835,13 @@
   }
   async function eksporCsv(semuaData) {
     let list = semuaData ? state.transaksi.slice() : transaksiBulan(state.bulan);
-    if (!list.length) { info('Tidak ada data', semuaData ? 'Belum ada transaksi untuk diekspor.' : 'Tidak ada transaksi di ' + esc(labelBulan(state.bulan)) + '.'); return; }
+    if (!list.length) { info('Tidak ada data', semuaData ? 'Belum ada transaksi untuk diekspor.' : 'Tidak ada transaksi ' + NAMA_BUKU[state.buku] + ' di ' + esc(labelBulan(state.bulan)) + '.'); return; }
     list.sort((a, b) => a.tanggal.localeCompare(b.tanggal) || String(a.dibuat_pada).localeCompare(String(b.dibuat_pada)));
-    const baris = [['Tanggal', 'Jenis', 'Kategori', 'Jumlah', 'Catatan', 'Dibuat Pada'].join(';')];
+    const baris = [['Buku', 'Tanggal', 'Jenis', 'Kategori', 'Jumlah', 'Catatan', 'Dibuat Pada'].join(';')];
     list.forEach((t) => {
-      baris.push([t.tanggal, t.jenis === 'masuk' ? 'Pemasukan' : 'Pengeluaran', namaKategori(t.kategori), t.jumlah, t.catatan, t.dibuat_pada].map(csvSel).join(';'));
+      baris.push([NAMA_BUKU[t.buku], t.tanggal, t.jenis === 'masuk' ? 'Pemasukan' : 'Pengeluaran', namaKategori(t.kategori), t.jumlah, t.catatan, t.dibuat_pada].map(csvSel).join(';'));
     });
-    const namaFile = 'es-keuangan-' + (semuaData ? 'semua-' + hariIni() : state.bulan) + '.csv';
+    const namaFile = 'es-keuangan-' + (semuaData ? 'semua-' + hariIni() : state.buku + '-' + state.bulan) + '.csv';
     // BOM supaya Excel membaca UTF-8 dengan benar; pemisah ";" sesuai pengaturan Excel Indonesia
     const ok = await simpanFile('﻿' + baris.join('\r\n'), namaFile, 'text/csv');
     if (ok) toast('CSV tersimpan: ' + namaFile);
@@ -784,6 +934,20 @@
   /* ============ Event ============ */
   function pasangEvent() {
     document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => gantiView(b.dataset.view)));
+    document.querySelectorAll('.buku-btn').forEach((b) => b.addEventListener('click', () => gantiBuku(b.dataset.buku)));
+    $('txBuku').addEventListener('change', () => { $('txKirimWa').hidden = true; });
+    $('txKirimWa').onclick = () => {
+      const tx = state.transaksi.find((t) => t.id === $('txId').value);
+      if (!tx) return;
+      tutupForm();
+      bukaWa(teksWa('baru', tx));
+    };
+    $('waKirim').onclick = kirimWa;
+    $('waBagikan').onclick = bagikanWa;
+    $('waSalin').onclick = salinWa;
+    $('waTutup').onclick = tutupWa;
+    $('waOverlay').addEventListener('click', (e) => { if (e.target === $('waOverlay')) tutupWa(); });
+    $('formUsaha').addEventListener('submit', simpanPengaturanUsaha);
     $('prevMonth').onclick = () => { state.bulan = geserBulan(state.bulan, -1); renderSemua(); };
     $('nextMonth').onclick = () => { state.bulan = geserBulan(state.bulan, 1); renderSemua(); };
     $('monthLabel').onclick = () => { state.bulan = bulanIni(); renderSemua(); };
@@ -822,6 +986,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!$('dialogOverlay').hidden) tutupDialog(null);
+      else if (!$('waOverlay').hidden) tutupWa();
       else if (!$('sheetOverlay').hidden) tutupForm();
     });
 
@@ -873,6 +1038,7 @@
       return;
     }
     renderSemua();
+    renderPengaturanUsaha();
     renderInfoBackup();
     renderInfoStorage();
     cekPengingatBackup();

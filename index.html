@@ -21,6 +21,10 @@
       <h1 class="brand"><img src="icons/favicon-32.png" alt="" width="26" height="26"> ES Keuangan</h1>
       <button id="btnInstalHeader" class="btn-chip" hidden>⬇ Instal</button>
     </div>
+    <div class="buku-switch" role="radiogroup" aria-label="Pilih buku">
+      <button class="buku-btn active" data-buku="pribadi" role="radio" aria-checked="true">👤 Pribadi</button>
+      <button class="buku-btn" data-buku="usaha" role="radio" aria-checked="false">🏪 Usaha</button>
+    </div>
     <div class="month-nav" id="monthNav">
       <button class="icon-btn" id="prevMonth" aria-label="Bulan sebelumnya">‹</button>
       <button class="month-label" id="monthLabel" title="Kembali ke bulan ini">November 2026</button>
@@ -44,8 +48,9 @@
 
       <div class="summary">
         <div class="sum-card sum-saldo">
-          <span class="sum-label">Saldo bulan ini</span>
+          <span class="sum-label" id="sumSaldoLabel">Saldo Pribadi bulan ini</span>
           <span class="sum-value" id="sumSaldo">Rp 0</span>
+          <span class="sum-total">Saldo keseluruhan: <strong id="sumTotal">Rp 0</strong></span>
         </div>
         <div class="sum-row">
           <div class="sum-card sum-masuk">
@@ -115,6 +120,23 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">🏪 WhatsApp untuk Buku Usaha</h2>
+        <p class="card-sub">Setiap uang masuk/keluar di buku Usaha, aplikasi membuat teks saldo berjalan, contoh:<br><code>993,845 + 35,000 = 1,028,845</code></p>
+        <form id="formUsaha" autocomplete="off">
+          <label class="field">
+            <span>Nomor WhatsApp tujuan <em class="muted">(opsional)</em></span>
+            <input type="tel" id="setWaNomor" inputmode="tel" maxlength="20" placeholder="mis. 0812 3456 7890">
+          </label>
+          <p class="note">Kosongkan nomor jika ingin memilih kontak/grup sendiri setiap kali mengirim.</p>
+          <label class="check">
+            <input type="checkbox" id="setWaOtomatis" checked>
+            <span>Tampilkan teks WhatsApp otomatis setelah menyimpan transaksi Usaha</span>
+          </label>
+          <button type="submit" class="btn btn-primary btn-block">Simpan Pengaturan</button>
+        </form>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">Backup &amp; Restore</h2>
         <p class="card-sub" id="lastBackupText">Belum pernah backup.</p>
         <p class="note">Data hanya tersimpan di HP ini. Simpan file backup di tempat aman (Google Drive, WhatsApp ke diri sendiri, atau komputer) supaya tidak hilang kalau HP rusak, ganti HP, atau data browser terhapus.</p>
@@ -125,9 +147,9 @@
 
       <div class="card">
         <h2 class="card-title">Ekspor CSV</h2>
-        <p class="card-sub">Untuk dibuka di Excel atau Google Sheets.</p>
-        <button class="btn btn-outline btn-block" id="btnCsvBulan">📄 Ekspor Bulan Terpilih</button>
-        <button class="btn btn-outline btn-block" id="btnCsvSemua">📄 Ekspor Semua Transaksi</button>
+        <p class="card-sub" id="csvSub">Untuk dibuka di Excel atau Google Sheets.</p>
+        <button class="btn btn-outline btn-block" id="btnCsvBulan">📄 Ekspor Bulan Terpilih (buku aktif)</button>
+        <button class="btn btn-outline btn-block" id="btnCsvSemua">📄 Ekspor Semua Transaksi (kedua buku)</button>
       </div>
 
       <div class="card">
@@ -175,6 +197,13 @@
           <button type="button" class="jt jt-masuk" data-jenis="masuk">↑ Pemasukan</button>
         </div>
         <label class="field">
+          <span>Buku</span>
+          <select id="txBuku">
+            <option value="pribadi">👤 Pribadi</option>
+            <option value="usaha">🏪 Usaha</option>
+          </select>
+        </label>
+        <label class="field">
           <span>Jumlah</span>
           <div class="amount-wrap">
             <span class="amount-prefix">Rp</span>
@@ -195,9 +224,25 @@
         </label>
         <p class="form-error" id="txError" hidden></p>
         <button type="submit" class="btn btn-primary btn-block btn-lg" id="txSubmit">Simpan</button>
+        <button type="button" class="btn btn-wa btn-block" id="txKirimWa" hidden>💬 Kirim Laporan ke WhatsApp</button>
         <button type="button" class="btn btn-danger-outline btn-block" id="txHapus" hidden>🗑 Hapus Transaksi</button>
         <button type="button" class="btn btn-ghost btn-block" id="txBatal">Batal</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ================= SHEET TEKS WHATSAPP ================= -->
+  <div class="overlay" id="waOverlay" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="waTitle">
+      <div class="sheet-handle"></div>
+      <h2 id="waTitle">💬 Kirim Saldo Usaha ke WhatsApp</h2>
+      <p class="note">Teks dibuat otomatis. Anda bisa mengubahnya sebelum dikirim.</p>
+      <textarea id="waTeks" rows="3" aria-label="Teks laporan WhatsApp"></textarea>
+      <p class="note" id="waTujuanInfo"></p>
+      <button type="button" class="btn btn-wa btn-block btn-lg" id="waKirim">Kirim ke WhatsApp</button>
+      <button type="button" class="btn btn-outline btn-block" id="waBagikan" hidden>📤 Bagikan ke aplikasi lain…</button>
+      <button type="button" class="btn btn-outline btn-block" id="waSalin">📋 Salin Teks</button>
+      <button type="button" class="btn btn-ghost btn-block" id="waTutup">Tutup</button>
     </div>
   </div>
 
